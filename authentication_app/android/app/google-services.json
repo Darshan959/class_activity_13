@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "220906854342",
+    "project_id": "auth-app-project-darsh",
+    "storage_bucket": "auth-app-project-darsh.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220906854342:android:14f3bc203565d3cc5104c7",
+        "android_client_info": {
+          "package_name": "com.auth.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGIttJPfBV8HKvY36zANmnuwpfzWNNaq0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
