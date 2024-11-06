@@ -8,7 +8,12 @@ import 'firebase_options.dart'; // helps with configurations
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+    options: FirebaseOptions(
+      appId: "1:220906854342:android:14f3bc203565d3cc5104c7",
+      projectId: "auth-app-project-darsh",
+      apiKey: 'AIzaSyCGIttJPfBV8HKvY36zANmnuwpfzWNNaq0',
+      messagingSenderId: 'auth-app-project-darsh',
+    ),
   );
 // start app
   runApp(MyApp());
