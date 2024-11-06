@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // helps with authentication
-import 'package:firebase_core/firebase_core.dart'; // initializes firebase
-import 'package:cloud_firestore/cloud_firestore.dart'; // helps with future data storage
-import 'firebase_options.dart'; // helps with configurations
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:email_validator/email_validator.dart';
+import 'firebase_options.dart';
 
-// Initialized flutter in the firebase
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -15,7 +14,6 @@ void main() async {
       messagingSenderId: 'auth-app-project-darsh',
     ),
   );
-// start app
   runApp(MyApp());
 }
 
@@ -24,51 +22,42 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Firebase Auth Demo',
-      home: MyHomePage(title: 'Firebase Auth Demo'),
+      home: AuthenticationScreen(),
     );
   }
 }
 
-// for main screen
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key, required this.title}) : super(key: key);
-  final String title;
-
-  @override
-  _MyHomePageState createState() => _MyHomePageState();
-}
-
-// main logic for signout and UI and give you a signout button
-class _MyHomePageState extends State<MyHomePage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  void _signOut() async {
-    await _auth.signOut();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Signed out successfully'),
-    ));
-  }
-
+class AuthenticationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
-        actions: <Widget>[
-          ElevatedButton(
-            onPressed: () {
-              _signOut();
-            },
-            child: Text('Sign Out'),
-          ),
-        ],
+        title: Text('Authentication'),
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            RegisterEmailSection(auth: _auth),
-            EmailPasswordForm(auth: _auth),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => RegisterEmailSection()),
+                );
+              },
+              child: Text('Register'),
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => EmailPasswordForm()),
+                );
+              },
+              child: Text('Sign In'),
+            ),
           ],
         ),
       ),
@@ -76,17 +65,55 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-// Act on the firebase authentication and use it as a parameter, registration for email
+class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  Future<String?> registerWithEmailAndPassword(
+      String email, String password) async {
+    try {
+      UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      User? user = result.user;
+      return user?.email;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<String?> signInWithEmailAndPassword(
+      String email, String password) async {
+    try {
+      UserCredential result = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      User? user = result.user;
+      return user?.email;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  User? getCurrentUser() {
+    return _auth.currentUser;
+  }
+}
+
 class RegisterEmailSection extends StatefulWidget {
-  RegisterEmailSection({Key? key, required this.auth}) : super(key: key);
-  final FirebaseAuth auth;
+  RegisterEmailSection({Key? key}) : super(key: key);
 
   @override
   _RegisterEmailSectionState createState() => _RegisterEmailSectionState();
 }
 
-// manage the registration forms, valid input and create the user with the provided email and password
 class _RegisterEmailSectionState extends State<RegisterEmailSection> {
+  final AuthService _authService = AuthService();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -94,90 +121,106 @@ class _RegisterEmailSectionState extends State<RegisterEmailSection> {
   bool _initialState = true;
   String? _userEmail;
 
+  String? _validateEmail(String? email) {
+    if (email == null || email.isEmpty) {
+      return 'Please enter an email';
+    } else if (!email.endsWith('@gsu.com')) {
+      return 'Email must end with @gsu.com';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? password) {
+    if (password == null || password.isEmpty) {
+      return 'Please enter a password';
+    } else if (password.length < 6) {
+      return 'Password should be at least 6 characters long';
+    }
+    return null;
+  }
+
   void _register() async {
-    try {
-      await widget.auth.createUserWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+    String? email = await _authService.registerWithEmailAndPassword(
+      _emailController.text,
+      _passwordController.text,
+    );
+    setState(() {
+      _success = email != null;
+      _userEmail = email;
+      _initialState = false;
+    });
+
+    if (_success) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+            builder: (context) => ProfileScreen(email: _userEmail!)),
       );
-      setState(() {
-        _success = true;
-        _userEmail = _emailController.text;
-        _initialState = false;
-      });
-    } catch (e) {
-      setState(() {
-        _success = false;
-        _initialState = false;
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          TextFormField(
-            controller: _emailController,
-            decoration: InputDecoration(labelText: 'Email'),
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter some text';
-              }
-              return null;
-            },
+    return Scaffold(
+      appBar: AppBar(title: Text('Register')),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              TextFormField(
+                controller: _emailController,
+                decoration: InputDecoration(labelText: 'Email'),
+                validator: _validateEmail,
+              ),
+              TextFormField(
+                controller: _passwordController,
+                decoration: InputDecoration(labelText: 'Password'),
+                obscureText: true,
+                validator: _validatePassword,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                alignment: Alignment.center,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      _register();
+                    }
+                  },
+                  child: Text('Register'),
+                ),
+              ),
+              Container(
+                alignment: Alignment.center,
+                child: Text(
+                  _initialState
+                      ? 'Please Register'
+                      : _success
+                          ? 'Successfully registered $_userEmail'
+                          : 'Registration failed',
+                  style: TextStyle(color: _success ? Colors.green : Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextFormField(
-            controller: _passwordController,
-            decoration: InputDecoration(labelText: 'Password'),
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter some text';
-              }
-              return null;
-            },
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            alignment: Alignment.center,
-            child: ElevatedButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  _register();
-                }
-              },
-              child: Text('Submit'),
-            ),
-          ),
-          Container(
-            alignment: Alignment.center,
-            child: Text(
-              _initialState
-                  ? 'Please Register'
-                  : _success
-                      ? 'Successfully registered $_userEmail'
-                      : 'Registration failed',
-              style: TextStyle(color: _success ? Colors.green : Colors.red),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class EmailPasswordForm extends StatefulWidget {
-  EmailPasswordForm({Key? key, required this.auth}) : super(key: key);
-  final FirebaseAuth auth;
+  EmailPasswordForm({Key? key}) : super(key: key);
 
   @override
   _EmailPasswordFormState createState() => _EmailPasswordFormState();
 }
 
 class _EmailPasswordFormState extends State<EmailPasswordForm> {
+  final AuthService _authService = AuthService();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -185,82 +228,128 @@ class _EmailPasswordFormState extends State<EmailPasswordForm> {
   bool _initialState = true;
   String _userEmail = '';
 
+  String? _validateEmail(String? email) {
+    if (email == null || email.isEmpty) {
+      return 'Please enter an email';
+    } else if (!email.endsWith('@gsu.com')) {
+      return 'Email must end with @gsu.com';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? password) {
+    if (password == null || password.isEmpty) {
+      return 'Please enter a password';
+    } else if (password.length < 6) {
+      return 'Password should be at least 6 characters long';
+    }
+    return null;
+  }
+
   void _signInWithEmailAndPassword() async {
-    try {
-      await widget.auth.signInWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+    String? email = await _authService.signInWithEmailAndPassword(
+      _emailController.text,
+      _passwordController.text,
+    );
+    setState(() {
+      _success = email != null;
+      _userEmail = email ?? '';
+      _initialState = false;
+    });
+
+    if (_success) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+            builder: (context) => ProfileScreen(email: _userEmail)),
       );
-      setState(() {
-        _success = true;
-        _userEmail = _emailController.text;
-        _initialState = false;
-      });
-    } catch (e) {
-      setState(() {
-        _success = false;
-        _initialState = false;
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            child: Text('Test sign in with email and password'),
-            padding: const EdgeInsets.all(16),
-            alignment: Alignment.center,
+    return Scaffold(
+      appBar: AppBar(title: Text('Sign In')),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              TextFormField(
+                controller: _emailController,
+                decoration: InputDecoration(labelText: 'Email'),
+                validator: _validateEmail,
+              ),
+              TextFormField(
+                controller: _passwordController,
+                decoration: InputDecoration(labelText: 'Password'),
+                obscureText: true,
+                validator: _validatePassword,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                alignment: Alignment.center,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      _signInWithEmailAndPassword();
+                    }
+                  },
+                  child: Text('Sign In'),
+                ),
+              ),
+              Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  _initialState
+                      ? 'Please sign in'
+                      : _success
+                          ? 'Successfully signed in $_userEmail'
+                          : 'Sign in failed',
+                  style: TextStyle(color: _success ? Colors.green : Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextFormField(
-            controller: _emailController,
-            decoration: InputDecoration(labelText: 'Email'),
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter some text';
-              }
-              return null;
-            },
-          ),
-          TextFormField(
-            controller: _passwordController,
-            decoration: InputDecoration(labelText: 'Password'),
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Please enter some text';
-              }
-              return null;
-            },
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            alignment: Alignment.center,
-            child: ElevatedButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  _signInWithEmailAndPassword();
-                }
+        ),
+      ),
+    );
+  }
+}
+
+class ProfileScreen extends StatelessWidget {
+  final String email;
+  ProfileScreen({required this.email});
+
+  final AuthService _authService = AuthService();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Profile')),
+      body: Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text('Welcome, $email', style: TextStyle(fontSize: 20)),
+            SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                await _authService.signOut();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => AuthenticationScreen()),
+                );
               },
-              child: Text('Submit'),
+              child: Text('Logout'),
             ),
-          ),
-          Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              _initialState
-                  ? 'Please sign in'
-                  : _success
-                      ? 'Successfully signed in $_userEmail'
-                      : 'Sign in failed',
-              style: TextStyle(color: _success ? Colors.green : Colors.red),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
